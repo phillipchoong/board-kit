@@ -1,0 +1,52 @@
+{
+  "name": "board-kit",
+  "version": "0.1.0",
+  "description": "Reusable Trello-style pipeline (kanban) and list views for Vue 3 + Inertia apps.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phillipchoong/board-kit.git"
+  },
+  "sideEffects": [
+    "*.vue",
+    "*.css"
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./components/*": "./src/components/*",
+    "./lib/*": "./src/lib/*",
+    "./package.json": "./package.json"
+  },
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "sortablejs": "^1.15.6"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "@vue/test-utils": "^2.4.11",
+    "happy-dom": "^20.11.2",
+    "vite": "^7.0.7",
+    "vitest": "^4.1.10",
+    "vue": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

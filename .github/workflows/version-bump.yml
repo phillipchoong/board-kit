@@ -1,0 +1,151 @@
+# version-bump -- the ONLY place the version and the changelog change.
+#
+# Task branches never bump the version and never edit the changelog directly:
+# with parallel task PRs both are guaranteed merge conflicts. Instead every PR
+# adds ONE fragment file, .changes/<issue>-<slug>.md (the board issue number
+# keeps the name unique, so PRs can never collide). On merge to main this job
+# bumps the patch version once, folds every pending fragment into the changelog
+# under the new version heading, deletes the fragments, and pushes.
+#
+# The same job also folds agent learnings. Task branches never edit
+# .agents/LEARNINGS.md either (same conflict problem, and the digest wants a
+# single writer); a PR drops ONE fragment at .agents/learnings/<issue>-<slug>.md
+# and this job appends it verbatim to the digest on merge and deletes the
+# fragment. Verbatim matters: a fragment flagged as contradicting the repo's
+# CLAUDE.md keeps that flag in the digest, and the job calls it out in the run
+# summary so a human still decides the doc change. The digest is append-only --
+# pruning and rewording are a deliberate human pass, never this job's.
+#
+# Deterministic bash + python only -- no agent, no LLM. Runs on ubuntu-latest
+# rather than the board's self-hosted runner: it needs npm and python3 and
+# nothing else, and it must not queue behind the CI jobs. The push uses
+# GITHUB_TOKEN, so it cannot re-trigger workflows (no loop); [skip ci] in the
+# commit message is belt-and-braces.
+name: version-bump
+
+on:
+  push:
+    branches: [main]
+    paths: ['.changes/**', '.agents/learnings/**']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # fetch-depth 0: the push-retry below rebases onto a moved main,
+      # which a shallow clone rejects ("shallow update not allowed").
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Bump version and fold fragments
+        env:
+          PKG_DIR: .
+          CHANGELOG: CHANGELOG.md
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          keep=()
+          for f in .changes/*.md; do
+            [ "$(basename "$f")" = "README.md" ] || keep+=("$f")
+          done
+          learn=()
+          for f in .agents/learnings/*.md; do
+            [ "$(basename "$f")" = "README.md" ] || learn+=("$f")
+          done
+          if [ ${#keep[@]} -eq 0 ] && [ ${#learn[@]} -eq 0 ]; then
+            echo "no pending fragments -- nothing to do"
+            exit 0
+          fi
+
+          DATE=$(TZ=Asia/Kuala_Lumpur date +%F)
+
+          # A learnings-only merge folds the digest without cutting a release:
+          # NEW stays empty and the version is left alone.
+          NEW=""
+          if [ ${#keep[@]} -gt 0 ]; then
+            NEW=$(cd "$PKG_DIR" && npm version patch --no-git-tag-version)
+            NEW="${NEW#v}"
+          fi
+
+          if [ ${#keep[@]} -gt 0 ]; then
+            {
+              echo "## [$NEW] - $DATE"
+              echo
+              for f in "${keep[@]}"; do
+                cat "$f"
+                echo
+              done
+            } > /tmp/section.md
+
+            python3 .github/scripts/fold-changelog.py "$CHANGELOG" /tmp/section.md
+          fi
+
+          git config user.name "version-bump[bot]"
+          git config user.email "version-bump@users.noreply.github.com"
+          if [ ${#keep[@]} -gt 0 ]; then
+            git rm -q -- "${keep[@]}"
+            git add -- "$CHANGELOG" "$PKG_DIR/package.json"
+            if [ -f "$PKG_DIR/package-lock.json" ]; then
+              git add -- "$PKG_DIR/package-lock.json"
+            fi
+          fi
+
+          # Append each learnings fragment to the digest verbatim, then delete
+          # it. Verbatim is the contract: a "contradicts CLAUDE.md" flag has to
+          # survive the fold, because the fold is mechanical and the doc change
+          # it argues for is not.
+          flagged=()
+          if [ ${#learn[@]} -gt 0 ]; then
+            mkdir -p .agents
+            if [ ! -f .agents/LEARNINGS.md ]; then
+              {
+                echo "# Learnings"
+                echo
+                echo "Durable, verified findings about this repo/toolchain that the next"
+                echo "session would otherwise rediscover. Appended automatically by the"
+                echo "version-bump workflow when a PR merges a fragment under"
+                echo ".agents/learnings/. Append-only -- prune by hand, never on a task branch."
+              } > .agents/LEARNINGS.md
+            fi
+            for f in "${learn[@]}"; do
+              slug=$(basename "$f" .md)
+              {
+                echo
+                echo "<!-- folded $DATE from $f -->"
+                echo
+                cat "$f"
+                echo
+              } >> .agents/LEARNINGS.md
+              if grep -qiE 'contradict|supersede|overrides? .*CLAUDE\.md' "$f"; then
+                flagged+=("$slug")
+              fi
+            done
+            git rm -q -- "${learn[@]}"
+            git add -- .agents/LEARNINGS.md
+          fi
+          if [ -n "$NEW" ]; then
+            git commit -m "chore: release v$NEW [skip ci]"
+          else
+            git commit -m "chore: fold ${#learn[@]} learnings fragment(s) [skip ci]"
+          fi
+          # A merge racing this job can move main between checkout and push.
+          for i in 1 2 3; do
+            if git push; then break; fi
+            git pull --rebase
+          done
+          if [ -n "$NEW" ]; then
+            echo "released v$NEW (${#keep[@]} fragment(s))" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ ${#learn[@]} -gt 0 ]; then
+            echo "folded ${#learn[@]} learnings fragment(s) into .agents/LEARNINGS.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ ${#flagged[@]} -gt 0 ]; then
+            echo "needs human review -- fragment(s) flagged as contradicting CLAUDE.md: ${flagged[*]}" >> "$GITHUB_STEP_SUMMARY"
+          fi

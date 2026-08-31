@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', '.agents/**']
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', '.agents/**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test & build
+    # Aurora board runners by default; setting the repo variable
+    # CI_RUNNER=ubuntu-latest flips back to GitHub-hosted with no commit --
+    # the failsafe. Keep this expression verbatim (ops-board
+    # runbooks/RUNBOOK_ci_runner.md).
+    runs-on: ${{ vars.CI_RUNNER || 'board' }}
+    timeout-minutes: 10
+
+    # No database, no services, no sidecars. This package is Vue source and
+    # pure functions; the whole suite runs in happy-dom.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      # The package ships raw .vue source and is never built for consumers, so
+      # nothing else would ever catch a template that does not compile. Building
+      # the playground compiles every component in the package.
+      - name: Compile check
+        run: npm run build
