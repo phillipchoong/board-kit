@@ -168,7 +168,7 @@ function onMove(event) {
 <template>
     <div class="page">
         <header class="head">
-            <div>
+            <div class="head-text">
                 <h1>board-kit</h1>
                 <p class="note">{{ board.note }}</p>
             </div>
@@ -243,7 +243,9 @@ function onMove(event) {
                     This whole panel is a slot. Move the card with the menu above and watch the header follow it,
                     then close with Escape, the scrim, or a swipe down on a phone.
                 </p>
-                <button type="button" class="btn" @click="close">Close</button>
+                <div class="drawer-actions">
+                    <button type="button" class="btn" @click="close">Close</button>
+                </div>
             </template>
         </BoardView>
 
@@ -285,13 +287,18 @@ function onMove(event) {
     padding: 20px 16px 60px;
 }
 
+/* Rows, not a wrapping row. Each board's description is a different length, and
+   with the controls beside it a longer one used to push them down the page - so
+   the tab you just clicked moved out from under the pointer. The text block also
+   reserves two lines, so switching boards never shifts the row below it. */
 .head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
+    display: grid;
     gap: 12px;
     margin-bottom: 16px;
+}
+
+.head-text {
+    min-height: 58px;
 }
 
 h1 {
@@ -371,6 +378,15 @@ h2 {
     gap: 6px;
     font-size: 13px;
     color: var(--text-muted);
+}
+
+.drawer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
 }
 
 .facts {

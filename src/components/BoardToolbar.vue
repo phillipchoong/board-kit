@@ -142,13 +142,27 @@ function clearAll() {
     margin-block-end: 12px;
 }
 
+/* The main group wraps INSIDE itself; the end group never moves.
+   Without the flex basis below, adding a filter value or the Clear button grows
+   the left side just enough to bump the view switch onto its own line, and the
+   control you were about to press has moved. */
 .bk-toolbar-main,
 .bk-toolbar-end {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     min-inline-size: 0;
+}
+
+.bk-toolbar-main {
+    flex: 1 1 260px;
+    flex-wrap: wrap;
+}
+
+.bk-toolbar-end {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .bk-search {

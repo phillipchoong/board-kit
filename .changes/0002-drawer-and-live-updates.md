@@ -18,3 +18,16 @@
 - The playground gained a light/dark/system switch, a button that simulates
   someone else changing a card, and a drawer, so all three can be seen rather
   than taken on trust.
+
+### Fixed
+
+- The change-highlight chip was painted with a translucent status tint, so the
+  card's own border showed through the middle of the word and read as a
+  strikethrough. It now composites that tint over an opaque card surface and
+  sits above the highlight ring.
+- Choosing a filter grew its button from "Source" to "Source: Facebook", which
+  reflowed the toolbar and shifted the view switch out from under the pointer.
+  Filter buttons now reserve a fixed width and truncate, and the toolbar's right
+  hand group no longer moves when the left one grows.
+- The drawer's move and close buttons were 2px apart and crowded against the
+  title. They now have a real gap, a right inset, and separation from the body.

@@ -185,6 +185,14 @@
     box-sizing: border-box;
 }
 
+/* Reserve the scrollbar's width whether or not there is one. Filtering a board
+   removes enough cards to make the page short enough to lose its scrollbar, and
+   the whole layout - toolbar, view switch, everything - then jumps 15px sideways.
+   Nothing to do with the board; it is the page, and this is the one-line fix. */
+html {
+    scrollbar-gutter: stable;
+}
+
 body {
     margin: 0;
     background: var(--surface-app);

@@ -248,19 +248,25 @@ function onCardClick(event) {
     --bk-flash-bg: var(--special-bg, #f4f3ff);
 }
 
-/* Colour never carries it alone: the chip says which kind of change it was. */
+/* Colour never carries it alone: the chip says which kind of change it was.
+   It straddles the card's top edge, so it has to be OPAQUE and it has to sit
+   above the ring. The status tints are translucent by design - painting one
+   straight onto a chip here let the card border and the ring show through the
+   middle of the word, which read as a strikethrough. Two backgrounds instead:
+   the card surface underneath, the tint composited over it. */
 .bk-flash-chip {
     position: absolute;
     inset-block-start: -9px;
     inset-inline-end: 8px;
-    z-index: 1;
+    z-index: 2;
     display: inline-flex;
     align-items: center;
     gap: 1px;
     padding: 0 6px 0 2px;
     border: 1px solid var(--bk-flash-fg);
     border-radius: var(--radius-pill, 999px);
-    background: var(--bk-flash-bg);
+    background-color: var(--surface-card, #ffffff);
+    background-image: linear-gradient(var(--bk-flash-bg), var(--bk-flash-bg));
     color: var(--bk-flash-fg);
     font-size: 10px;
     font-weight: 700;

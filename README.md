@@ -443,6 +443,17 @@ the dark mode with nothing to configure: `--surface-card`, `--surface-sunken`,
 `--success-border`, and the same three for warning, danger, info, special,
 neutral). Every one has a sane fallback, so it also works in a plain Vite app.
 
+**One line for the host page.** Filtering a board can remove enough cards to
+make the page short enough to lose its scrollbar, and the layout then jumps
+sideways by the scrollbar's width. That is the page, not the board, and the fix
+belongs in the app:
+
+```css
+html {
+    scrollbar-gutter: stable;
+}
+```
+
 Layout is four variables, set on the board element and overridable from outside:
 
 | | Default | |

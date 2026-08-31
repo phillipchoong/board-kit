@@ -235,9 +235,9 @@ const transitionName = computed(() => (isSheet.value ? 'bk-sheet' : 'bk-panel'))
 .bk-drawer-head {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
+    gap: 12px;
     flex-wrap: wrap;
-    padding: 14px 14px 10px;
+    padding: 14px 12px 12px 16px;
     border-block-end: 1px solid var(--border-subtle, #e4e7ec);
 }
 
@@ -276,10 +276,17 @@ const transitionName = computed(() => (isSheet.value ? 'bk-sheet' : 'bk-panel'))
     font-size: 12px;
 }
 
+/* Its own gap, and a real one. At 2px the move menu and the close button read
+   as a single smudged control, and both are 32px targets that need to be
+   separately hittable with a thumb. `flex: none` keeps them off the title. */
 .bk-drawer-actions {
     display: flex;
     align-items: center;
-    gap: 2px;
+    flex: none;
+    gap: 6px;
+    /* Nudge up so the buttons optically align with the title's cap height
+       rather than sitting a couple of pixels below it. */
+    margin-block-start: -3px;
 }
 
 .bk-drawer-close {
@@ -313,7 +320,7 @@ const transitionName = computed(() => (isSheet.value ? 'bk-sheet' : 'bk-panel'))
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 14px;
+    padding: 16px;
     font-size: 13px;
 }
 
