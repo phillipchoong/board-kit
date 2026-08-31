@@ -27,6 +27,10 @@ on:
   push:
     branches: [main]
     paths: ['.changes/**', '.agents/learnings/**']
+  # So a run that failed for a reason outside the fragments - a missing helper
+  # script, say - can be retried without pushing a throwaway fragment to
+  # re-trigger it.
+  workflow_dispatch:
 
 permissions:
   contents: write
