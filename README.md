@@ -22,8 +22,13 @@ OS, KrakenOS, client-starter itself) and used more than once per app.
 It is a public repo, so no token and no registry setup:
 
 ```
-npm install github:phillipchoong/board-kit#v0.1.0
+npm install github:phillipchoong/board-kit#v0.1.1
 ```
+
+Pin a tag, not `main` — a git dependency on a branch re-resolves on every
+`npm install`, so six apps would drift apart on whatever `main` happened to be
+that day. The tags are at
+[github.com/phillipchoong/board-kit/tags](https://github.com/phillipchoong/board-kit/tags).
 
 Then **one line** in the app's `vite.config.js`:
 
