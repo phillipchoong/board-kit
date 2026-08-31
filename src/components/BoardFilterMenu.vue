@@ -98,7 +98,12 @@ function pick(close, value) {
     align-items: center;
     gap: 6px;
     min-block-size: 34px;
-    max-inline-size: 220px;
+    /* A FIXED width, not a max. The label grows from "Source" to
+       "Source: Facebook" the moment you choose something, and a button that
+       resizes under the pointer shoves every control after it sideways. The
+       width is reserved up front and long values truncate instead. */
+    flex: 0 0 auto;
+    inline-size: 152px;
     padding: 0 10px;
     border: 1px solid var(--border-default, #d0d5dd);
     border-radius: var(--radius-button, 5px);
@@ -121,6 +126,8 @@ function pick(close, value) {
 }
 
 .bk-filter-trigger-text {
+    flex: 1;
+    min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

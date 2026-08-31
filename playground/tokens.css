@@ -6,6 +6,14 @@
  * into TQK Platform, ThreeStep OS, Glampot OS or NewBond OS means it picks up
  * that app's palette and its dark mode with nothing to configure. This file
  * exists so the playground looks right on its own.
+ *
+ * THREE STATES, the same as client-starter:
+ *   :root                        light, the default
+ *   prefers-color-scheme: dark   dark, unless [data-theme='light'] says otherwise
+ *   [data-theme='dark']          dark, always
+ *
+ * The [data-theme] selectors are deliberately not scoped to :root, so a subtree
+ * can opt into a theme independently of the page.
  */
 
 :root {
@@ -16,6 +24,7 @@
     --surface-sunken: #f4f5f7;
     --surface-raised: #ffffff;
     --surface-hover: #f2f4f7;
+    --surface-overlay: rgb(16 24 40 / 0.5);
 
     --text-strong: #101828;
     --text-body: #344054;
@@ -30,6 +39,7 @@
     --radius-xs: 3px;
     --radius-sm: 5px;
     --radius-md: 8px;
+    --radius-lg: 12px;
     --radius-button: 5px;
     --radius-pill: 999px;
 
@@ -37,6 +47,7 @@
     --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.08);
     --shadow-md: 0 2px 4px rgb(16 24 40 / 0.06), 0 4px 10px rgb(16 24 40 / 0.08);
     --shadow-lg: 0 6px 16px rgb(16 24 40 / 0.1), 0 12px 28px rgb(16 24 40 / 0.12);
+    --shadow-modal: 0 18px 50px rgb(16 24 40 / 0.28);
 
     --neutral-bg: #f2f4f7;
     --neutral-600: #475467;
@@ -61,6 +72,13 @@
     --color-brand-700: #3538cd;
 }
 
+/*
+ * DARK. The numeric suffixes name the LIGHT ramp step and are not re-derived
+ * here; what the dark block preserves is the CONTRACT the components rely on -
+ * `--x-bg` is always a tint you can sit `--x-700` text on at AA. Keeping the
+ * contract rather than the numbering is what lets every badge, chip and panel
+ * go dark without being touched.
+ */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
         color-scheme: dark;
@@ -70,6 +88,7 @@
         --surface-sunken: #0c111d;
         --surface-raised: #1f242f;
         --surface-hover: #1f242f;
+        --surface-overlay: rgb(0 0 0 / 0.65);
 
         --text-strong: #f5f5f6;
         --text-body: #cecfd2;
@@ -107,11 +126,71 @@
         --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
         --shadow-md: 0 2px 4px rgb(0 0 0 / 0.5), 0 4px 10px rgb(0 0 0 / 0.44);
         --shadow-lg: 0 6px 16px rgb(0 0 0 / 0.55), 0 12px 28px rgb(0 0 0 / 0.5);
+        --shadow-modal: 0 18px 50px rgb(0 0 0 / 0.7);
     }
+}
+
+/* Dark, chosen explicitly. Same values; duplicated because CSS has no way to
+   share a declaration block between two selectors. */
+[data-theme='dark'] {
+    color-scheme: dark;
+
+    --surface-app: #0c111d;
+    --surface-card: #161b26;
+    --surface-sunken: #0c111d;
+    --surface-raised: #1f242f;
+    --surface-hover: #1f242f;
+    --surface-overlay: rgb(0 0 0 / 0.65);
+
+    --text-strong: #f5f5f6;
+    --text-body: #cecfd2;
+    --text-muted: #94969c;
+    --text-faint: #85888e;
+    --text-link: #a4bcfd;
+
+    --border-subtle: #333741;
+    --border-default: #414651;
+    --border-focus: #8098f9;
+
+    --neutral-bg: rgb(255 255 255 / 0.06);
+    --neutral-600: #94969c;
+    --neutral-border: rgb(255 255 255 / 0.14);
+    --info-bg: rgb(46 144 250 / 0.18);
+    --info-700: #84caff;
+    --info-border: rgb(46 144 250 / 0.42);
+    --success-bg: rgb(18 183 106 / 0.18);
+    --success-700: #75e0a7;
+    --success-border: rgb(18 183 106 / 0.42);
+    --warning-bg: rgb(247 144 9 / 0.18);
+    --warning-700: #fec84b;
+    --warning-border: rgb(247 144 9 / 0.42);
+    --danger-bg: rgb(240 68 56 / 0.18);
+    --danger-700: #fda29b;
+    --danger-border: rgb(240 68 56 / 0.42);
+    --special-bg: rgb(105 56 239 / 0.18);
+    --special-700: #bdb4fe;
+    --special-border: rgb(105 56 239 / 0.42);
+    --color-brand-50: rgb(99 102 241 / 0.16);
+    --color-brand-200: rgb(99 102 241 / 0.4);
+    --color-brand-700: #a5b4fc;
+
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.5);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 2px 4px rgb(0 0 0 / 0.5), 0 4px 10px rgb(0 0 0 / 0.44);
+    --shadow-lg: 0 6px 16px rgb(0 0 0 / 0.55), 0 12px 28px rgb(0 0 0 / 0.5);
+    --shadow-modal: 0 18px 50px rgb(0 0 0 / 0.7);
 }
 
 * {
     box-sizing: border-box;
+}
+
+/* Reserve the scrollbar's width whether or not there is one. Filtering a board
+   removes enough cards to make the page short enough to lose its scrollbar, and
+   the whole layout - toolbar, view switch, everything - then jumps 15px sideways.
+   Nothing to do with the board; it is the page, and this is the one-line fix. */
+html {
+    scrollbar-gutter: stable;
 }
 
 body {

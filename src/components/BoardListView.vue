@@ -16,6 +16,7 @@ import { computed } from 'vue';
 import BoardIcon from './BoardIcon.vue';
 import BoardMoveMenu from './BoardMoveMenu.vue';
 import { cardValue, sortCards } from '../lib/model.js';
+import { useNow } from '../composables/useNow.js';
 
 const props = defineProps({
     cards: { type: Array, default: () => [] },
@@ -29,9 +30,14 @@ const props = defineProps({
     laneDraggable: { type: Boolean, default: true },
     formatUpdated: { type: Function, default: null },
     emptyText: { type: String, default: 'Nothing to show.' },
+    flashes: { type: Map, default: () => new Map() },
 });
 
 const emit = defineEmits(['update:sort', 'select', 'move']);
+
+// Relative timestamps in the table have to re-render on the tick too, or the
+// list quietly disagrees with the board about how old a card is.
+const now = useNow();
 
 const columnTitle = (id) => props.columns.find((c) => c.id === id)?.title ?? id;
 const laneTitle = (id) => props.lanes.find((l) => l.id === id)?.title ?? id;
@@ -98,7 +104,10 @@ const ariaSort = (col) => {
     return props.sortDir === 'asc' ? 'ascending' : 'descending';
 };
 
-const cellValue = (col, card) => (col.get ? col.get(card) : cardValue(card, col.key));
+const cellValue = (col, card) => {
+    void now.value;
+    return col.get ? col.get(card) : cardValue(card, col.key);
+};
 const hideClass = (col) => (col.hide ? `bk-hide-${col.hide}` : null);
 </script>
 
@@ -144,6 +153,7 @@ const hideClass = (col) => (col.hide ? `bk-hide-${col.hide}` : null);
                         v-for="card in group.rows"
                         :key="card.id"
                         class="bk-row"
+                        :class="flashes.get(card.id) ? `bk-row--flash bk-row--flash-${flashes.get(card.id)}` : null"
                         tabindex="0"
                         @click="emit('select', card)"
                         @keydown.enter.prevent="emit('select', card)"
@@ -262,6 +272,46 @@ tbody td {
     color: var(--neutral-600, #475467);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+}
+
+/* The same three change colours as the board, drawn as a left edge because a
+   ring around a table row is not a shape a table can make. */
+.bk-row--flash td:first-child {
+    box-shadow: inset 3px 0 0 var(--bk-flash-fg);
+}
+
+.bk-row--flash td {
+    background: color-mix(in srgb, var(--bk-flash-fg) 8%, transparent);
+    animation: bk-row-flash-fade 1.6s ease-out forwards;
+}
+
+.bk-row--flash-added {
+    --bk-flash-fg: var(--success-700, #027a48);
+}
+
+.bk-row--flash-moved {
+    --bk-flash-fg: var(--info-700, #175cd3);
+}
+
+.bk-row--flash-updated {
+    --bk-flash-fg: var(--special-700, #5925dc);
+}
+
+@keyframes bk-row-flash-fade {
+    0%,
+    55% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.999;
+        background: transparent;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bk-row--flash td {
+        animation: none;
+    }
 }
 
 .bk-end {

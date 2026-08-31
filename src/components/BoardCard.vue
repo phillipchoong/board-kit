@@ -12,6 +12,7 @@
  * while your own markup fills the body.
  */
 import { computed } from 'vue';
+import { useNow } from '../composables/useNow.js';
 import BoardIcon from './BoardIcon.vue';
 import BoardMoveMenu from './BoardMoveMenu.vue';
 import { normaliseBadge, toneVars } from '../lib/tones.js';
@@ -25,15 +26,24 @@ const props = defineProps({
     showMenu: { type: Boolean, default: true },
     showHandle: { type: Boolean, default: false },
     formatUpdated: { type: Function, default: null },
+    /** 'added' | 'moved' | 'updated' while this card is highlighted. */
+    flash: { type: String, default: null },
 });
 
 const emit = defineEmits(['select', 'move']);
 
 const badges = computed(() => (props.card.badges ?? []).map(normaliseBadge).filter(Boolean));
+const now = useNow();
 const updated = computed(() => {
     if (!props.card.updatedAt) return null;
+    // Reading the clock is what makes "2m ago" become "3m ago" on its own. The
+    // value is not used - the dependency is the point.
+    void now.value;
     return props.formatUpdated ? props.formatUpdated(props.card.updatedAt) : props.card.updatedAt;
 });
+
+const FLASH_LABELS = { added: 'New', moved: 'Moved', updated: 'Updated' };
+const flashLabel = computed(() => FLASH_LABELS[props.flash] ?? null);
 
 function onCardClick(event) {
     // A click that started on the menu, a link, or any other control belongs to
@@ -46,11 +56,16 @@ function onCardClick(event) {
 <template>
     <div
         class="bk-card"
-        :class="{ 'bk-card--static': !draggable }"
+        :class="[{ 'bk-card--static': !draggable }, flash ? `bk-card--flash bk-card--flash-${flash}` : null]"
         :data-bk-card="card.id"
         role="listitem"
         @click="onCardClick"
     >
+        <span v-if="flashLabel" class="bk-flash-chip">
+            <BoardIcon name="dot" :size="10" />
+            {{ flashLabel }}
+        </span>
+
         <div class="bk-card-head">
             <BoardIcon v-if="showHandle && draggable" name="grip" :size="14" class="bk-card-grip" />
             <component
@@ -90,6 +105,7 @@ function onCardClick(event) {
 
 <style scoped>
 .bk-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -199,5 +215,79 @@ function onCardClick(event) {
     margin: 0;
     font-size: 11px;
     color: var(--text-faint, #98a2b3);
+}
+
+/* ---------------------------------------------------------- change flash */
+
+/* A ring drawn OVER the card rather than a border on it, so nothing reflows
+   when a card lights up: a board that nudges every card sideways when one of
+   them changes is worse than one that says nothing. */
+.bk-card--flash::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--bk-flash-fg);
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--bk-flash-fg) 10%, transparent);
+    pointer-events: none;
+    animation: bk-flash-fade 1.6s ease-out forwards;
+}
+
+.bk-card--flash-added {
+    --bk-flash-fg: var(--success-700, #027a48);
+    --bk-flash-bg: var(--success-bg, #ecfdf3);
+}
+
+.bk-card--flash-moved {
+    --bk-flash-fg: var(--info-700, #175cd3);
+    --bk-flash-bg: var(--info-bg, #eff8ff);
+}
+
+.bk-card--flash-updated {
+    --bk-flash-fg: var(--special-700, #5925dc);
+    --bk-flash-bg: var(--special-bg, #f4f3ff);
+}
+
+/* Colour never carries it alone: the chip says which kind of change it was.
+   It straddles the card's top edge, so it has to be OPAQUE and it has to sit
+   above the ring. The status tints are translucent by design - painting one
+   straight onto a chip here let the card border and the ring show through the
+   middle of the word, which read as a strikethrough. Two backgrounds instead:
+   the card surface underneath, the tint composited over it. */
+.bk-flash-chip {
+    position: absolute;
+    inset-block-start: -9px;
+    inset-inline-end: 8px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 0 6px 0 2px;
+    border: 1px solid var(--bk-flash-fg);
+    border-radius: var(--radius-pill, 999px);
+    background-color: var(--surface-card, #ffffff);
+    background-image: linear-gradient(var(--bk-flash-bg), var(--bk-flash-bg));
+    color: var(--bk-flash-fg);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    animation: bk-flash-fade 1.6s ease-out forwards;
+}
+
+@keyframes bk-flash-fade {
+    0%,
+    55% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bk-card--flash::after,
+    .bk-flash-chip {
+        animation: none;
+    }
 }
 </style>

@@ -40,6 +40,7 @@ const props = defineProps({
     emptyText: { type: String, default: 'Nothing here' },
     formatUpdated: { type: Function, default: null },
     touchDelay: { type: Number, default: 350 },
+    flashes: { type: Map, default: () => new Map() },
 });
 
 const emit = defineEmits(['drop', 'select', 'move', 'toggle-column', 'toggle-lane']);
@@ -130,6 +131,7 @@ const cardsFor = (lane, column) => props.buckets.get(bucketKey(lane.id, column.i
                             :empty-text="emptyText"
                             :format-updated="formatUpdated"
                             :touch-delay="touchDelay"
+                            :flashes="flashes"
                             @drop="(payload) => emit('drop', payload)"
                             @select="(card) => emit('select', card)"
                             @move="(payload) => emit('move', payload)"

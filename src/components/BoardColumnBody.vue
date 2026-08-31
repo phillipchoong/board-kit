@@ -32,6 +32,8 @@ const props = defineProps({
     emptyText: { type: String, default: 'Nothing here' },
     formatUpdated: { type: Function, default: null },
     touchDelay: { type: Number, default: 350 },
+    /** cardId -> 'added' | 'moved' | 'updated', for cards that just changed. */
+    flashes: { type: Map, default: () => new Map() },
 });
 
 const emit = defineEmits(['drop', 'select', 'move']);
@@ -87,6 +89,7 @@ const label = computed(() =>
                     :show-menu="showMenu"
                     :show-handle="showHandle"
                     :format-updated="formatUpdated"
+                    :flash="flashes.get(card.id) ?? null"
                     @select="emit('select', card)"
                     @move="(patch) => emit('move', { card, patch })"
                 >

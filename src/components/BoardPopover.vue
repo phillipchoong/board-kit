@@ -45,9 +45,13 @@ defineExpose({ close });
 </template>
 
 <style scoped>
+/* `flex: none` on both: these sit inside flex rows (the toolbar, a card head)
+   that would otherwise shrink the trigger below the width it reserved for
+   itself, which puts the reflow straight back. */
 .bk-popover-root,
 .bk-popover-trigger-wrap {
     display: flex;
+    flex: none;
     min-inline-size: 0;
 }
 </style>

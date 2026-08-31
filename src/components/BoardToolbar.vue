@@ -10,6 +10,8 @@
 import { computed } from 'vue';
 import BoardIcon from './BoardIcon.vue';
 import BoardFilterMenu from './BoardFilterMenu.vue';
+import { useNow } from '../composables/useNow.js';
+import { relativeAge } from '../lib/time.js';
 
 const props = defineProps({
     view: { type: String, default: 'board' },
@@ -22,9 +24,16 @@ const props = defineProps({
     searchPlaceholder: { type: String, default: 'Search cards' },
     visibleCount: { type: Number, default: 0 },
     totalCount: { type: Number, default: 0 },
+    /** When this data was fetched. Shown as a live-ticking "Updated 40s ago". */
+    updatedAt: { type: [String, Number, Date], default: null },
+    refreshing: { type: Boolean, default: false },
+    showRefresh: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['update:view', 'update:query', 'update:activeFilters']);
+const emit = defineEmits(['update:view', 'update:query', 'update:activeFilters', 'refresh']);
+
+const now = useNow();
+const age = computed(() => relativeAge(props.updatedAt, now.value));
 
 const activeCount = computed(() =>
     Object.values(props.activeFilters).reduce((sum, value) => sum + (Array.isArray(value) ? value.length : value ? 1 : 0), 0),
@@ -73,6 +82,23 @@ function clearAll() {
         </div>
 
         <div class="bk-toolbar-end">
+            <p v-if="age" class="bk-age" :class="{ 'bk-age--busy': refreshing }">
+                <span v-if="refreshing">Refreshing</span>
+                <span v-else>Updated {{ age }}</span>
+            </p>
+
+            <button
+                v-if="showRefresh"
+                type="button"
+                class="bk-refresh"
+                :class="{ 'bk-refresh--busy': refreshing }"
+                :disabled="refreshing"
+                aria-label="Refresh the board"
+                @click="emit('refresh')"
+            >
+                <BoardIcon name="refresh" :size="15" />
+            </button>
+
             <p class="bk-count" aria-live="polite">
                 <template v-if="isFiltered">{{ visibleCount }} of {{ totalCount }}</template>
                 <template v-else>{{ totalCount }} {{ totalCount === 1 ? 'card' : 'cards' }}</template>
@@ -116,13 +142,27 @@ function clearAll() {
     margin-block-end: 12px;
 }
 
+/* The main group wraps INSIDE itself; the end group never moves.
+   Without the flex basis below, adding a filter value or the Clear button grows
+   the left side just enough to bump the view switch onto its own line, and the
+   control you were about to press has moved. */
 .bk-toolbar-main,
 .bk-toolbar-end {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     min-inline-size: 0;
+}
+
+.bk-toolbar-main {
+    flex: 1 1 260px;
+    flex-wrap: wrap;
+}
+
+.bk-toolbar-end {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .bk-search {
@@ -185,6 +225,59 @@ function clearAll() {
 .bk-clear:hover {
     background: var(--surface-hover, #f2f4f7);
     color: var(--text-body, #344054);
+}
+
+.bk-age {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    color: var(--text-faint, #98a2b3);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.bk-age--busy {
+    color: var(--text-muted, #667085);
+}
+
+.bk-refresh {
+    display: grid;
+    place-items: center;
+    position: relative;
+    inline-size: 34px;
+    block-size: 34px;
+    border: 1px solid var(--border-default, #d0d5dd);
+    border-radius: var(--radius-button, 5px);
+    background: var(--surface-card, #ffffff);
+    color: var(--text-muted, #667085);
+    cursor: pointer;
+}
+
+.bk-refresh:hover:not(:disabled) {
+    background: var(--surface-hover, #f2f4f7);
+    color: var(--text-body, #344054);
+}
+
+.bk-refresh:disabled {
+    cursor: default;
+}
+
+.bk-refresh--busy :deep(.bk-icon) {
+    animation: bk-spin 900ms linear infinite;
+}
+
+@keyframes bk-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bk-refresh--busy :deep(.bk-icon) {
+        animation: none;
+        opacity: 0.5;
+    }
 }
 
 .bk-count {

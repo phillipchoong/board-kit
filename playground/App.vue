@@ -1,11 +1,13 @@
 <script setup>
 /**
- * The playground. Three boards, an event log, and a switch that makes every
- * save fail - the two things you cannot check by reading the code: what the
- * `move` payload actually contains, and whether a rejected move really does
- * put the card back.
+ * The playground.
+ *
+ * Three boards, plus the four things you cannot check by reading the code:
+ * what the `move` payload actually contains, whether a rejected move really
+ * puts the card back, what an update arriving from someone else looks like,
+ * and whether the whole thing holds up in light as well as dark.
  */
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { BoardView } from 'board-kit';
 import {
     INTAKE_CARDS,
@@ -52,22 +54,85 @@ const board = computed(() => BOARDS[which.value]);
 const failNext = ref(false);
 const limitMode = ref('warn');
 const log = ref([]);
+const selected = ref(null);
+
+/* ------------------------------------------------------------------ theme */
+
+const theme = ref('system');
+
+function applyTheme() {
+    const root = document.documentElement;
+    if (theme.value === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', theme.value);
+}
+
+function setTheme(value) {
+    theme.value = value;
+    applyTheme();
+}
+
+onMounted(applyTheme);
+
+/* ----------------------------------------------------------- live updates */
+
+const fetchedAt = ref(new Date().toISOString());
+const refreshing = ref(false);
 
 const formatUpdated = (iso) => {
     if (!iso) return null;
     const ms = Date.now() - new Date(iso).getTime();
     const h = ms / 3600000;
+    if (h < 1 / 60) return 'just now';
     if (h < 1) return `${Math.max(1, Math.round(ms / 60000))}m ago`;
     if (h < 24) return `${Math.round(h)}h ago`;
     return `${Math.round(h / 24)}d ago`;
 };
 
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+let added = 0;
+
 /**
- * Stands in for the endpoint. The real one would PATCH and then reload; here
- * the props are mutated directly, which is the same thing from the board's
- * point of view - it watches its `cards` prop and drops the override once the
- * data agrees.
+ * Stands in for a poll, a websocket push, or a colleague on another laptop.
+ * Three kinds of change at once, so all three highlight colours show up.
  */
+function simulateRemote() {
+    const cards = board.value.cards;
+    const columns = board.value.columns;
+
+    const mover = pick(cards);
+    const target = pick(columns.filter((c) => c.id !== mover.columnId));
+    mover.columnId = target.id;
+    mover.updatedAt = new Date().toISOString();
+
+    const edited = pick(cards.filter((c) => c.id !== mover.id));
+    if (edited) {
+        edited.title = edited.title.replace(/ \(edited( \d+)?\)$/, '') + ` (edited ${++added})`;
+        edited.updatedAt = new Date().toISOString();
+    }
+
+    cards.push({
+        id: `new-${added}-${Math.floor(Math.random() * 1e6)}`,
+        columnId: columns[0].id,
+        laneId: board.value.lanes ? board.value.lanes[0].id : undefined,
+        position: cards.length,
+        title: `Arrived from somewhere else #${added}`,
+        subtitle: 'pushed while you were looking at the board',
+        updatedAt: new Date().toISOString(),
+    });
+
+    fetchedAt.value = new Date().toISOString();
+}
+
+function refresh() {
+    refreshing.value = true;
+    setTimeout(() => {
+        simulateRemote();
+        refreshing.value = false;
+    }, 700);
+}
+
+/* ------------------------------------------------------------------ moves */
+
 function onMove(event) {
     log.value = [
         {
@@ -96,15 +161,14 @@ function onMove(event) {
         if (target) target.position = i;
     });
     card.updatedAt = new Date().toISOString();
+    fetchedAt.value = new Date().toISOString();
 }
-
-const selected = ref(null);
 </script>
 
 <template>
     <div class="page">
         <header class="head">
-            <div>
+            <div class="head-text">
                 <h1>board-kit</h1>
                 <p class="note">{{ board.note }}</p>
             </div>
@@ -122,6 +186,21 @@ const selected = ref(null);
                         {{ b.label }}
                     </button>
                 </div>
+
+                <div class="seg" role="group" aria-label="Theme">
+                    <button
+                        v-for="t in ['system', 'light', 'dark']"
+                        :key="t"
+                        type="button"
+                        :class="{ on: theme === t }"
+                        :aria-pressed="theme === t"
+                        @click="setTheme(t)"
+                    >
+                        {{ t }}
+                    </button>
+                </div>
+
+                <button type="button" class="btn" @click="simulateRemote">Someone else changed a card</button>
 
                 <label class="check">
                     <input v-model="failNext" type="checkbox" />
@@ -144,14 +223,31 @@ const selected = ref(null);
             :limit-mode="limitMode"
             :storage-key="`demo-${which}`"
             :format-updated="formatUpdated"
+            :updated-at="fetchedAt"
+            :refreshing="refreshing"
+            show-refresh
+            drawer
             @move="onMove"
+            @refresh="refresh"
             @select="(card) => (selected = card)"
-        />
-
-        <p v-if="selected" class="selected">
-            Opened: <strong>{{ selected.title }}</strong>
-            <button type="button" @click="selected = null">close</button>
-        </p>
+        >
+            <template #drawer="{ card, close }">
+                <dl class="facts">
+                    <div><dt>Id</dt><dd>{{ card.id }}</dd></div>
+                    <div><dt>Stage</dt><dd>{{ card.columnId }}</dd></div>
+                    <div v-if="card.subtitle"><dt>Detail</dt><dd>{{ card.subtitle }}</dd></div>
+                    <div v-if="card.summary"><dt>Notes</dt><dd>{{ card.summary }}</dd></div>
+                    <div><dt>Updated</dt><dd>{{ formatUpdated(card.updatedAt) ?? '—' }}</dd></div>
+                </dl>
+                <p class="note">
+                    This whole panel is a slot. Move the card with the menu above and watch the header follow it,
+                    then close with Escape, the scrim, or a swipe down on a phone.
+                </p>
+                <div class="drawer-actions">
+                    <button type="button" class="btn" @click="close">Close</button>
+                </div>
+            </template>
+        </BoardView>
 
         <section class="log">
             <h2>move events</h2>
@@ -191,13 +287,18 @@ const selected = ref(null);
     padding: 20px 16px 60px;
 }
 
+/* Rows, not a wrapping row. Each board's description is a different length, and
+   with the controls beside it a longer one used to push them down the page - so
+   the tab you just clicked moved out from under the pointer. The text block also
+   reserves two lines, so switching boards never shifts the row below it. */
 .head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
+    display: grid;
     gap: 12px;
     margin-bottom: 16px;
+}
+
+.head-text {
+    min-height: 58px;
 }
 
 h1 {
@@ -244,6 +345,7 @@ h2 {
     color: var(--text-muted);
     font: inherit;
     font-size: 13px;
+    text-transform: capitalize;
     cursor: pointer;
 }
 
@@ -254,6 +356,22 @@ h2 {
     box-shadow: var(--shadow-xs);
 }
 
+.btn {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-button);
+    background: var(--surface-card);
+    color: var(--text-body);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: var(--surface-hover);
+}
+
 .check {
     display: inline-flex;
     align-items: center;
@@ -262,21 +380,34 @@ h2 {
     color: var(--text-muted);
 }
 
-.selected {
-    margin: 12px 0 0;
-    font-size: 13px;
+.drawer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
 }
 
-.selected button {
-    margin-left: 8px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-sm);
-    background: var(--surface-card);
-    color: inherit;
-    font: inherit;
-    font-size: 12px;
-    padding: 2px 8px;
-    cursor: pointer;
+.facts {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 14px;
+}
+
+.facts dt {
+    margin-bottom: 2px;
+    color: var(--text-faint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.facts dd {
+    margin: 0;
+    color: var(--text-body);
+    font-size: 13px;
 }
 
 .log {

@@ -9,6 +9,7 @@ export { default as BoardView } from './components/BoardView.vue';
 export { default as BoardPipeline } from './components/BoardPipeline.vue';
 export { default as BoardListView } from './components/BoardListView.vue';
 export { default as BoardCard } from './components/BoardCard.vue';
+export { default as BoardCardDrawer } from './components/BoardCardDrawer.vue';
 export { default as BoardColumnHeader } from './components/BoardColumnHeader.vue';
 export { default as BoardColumnBody } from './components/BoardColumnBody.vue';
 export { default as BoardLaneHeader } from './components/BoardLaneHeader.vue';
@@ -38,6 +39,8 @@ export {
 export { applyOrder, applyPending, buildMove, isSettled, positionBetween } from './lib/move.js';
 export { TONES, normaliseBadge, toneVars } from './lib/tones.js';
 
+export { useFocusTrap } from './composables/useFocusTrap.js';
 export { usePersistentState } from './composables/usePersistentState.js';
+export { useScrollLock } from './composables/useScrollLock.js';
 export { usePopover } from './composables/usePopover.js';
 export { useSortableList } from './composables/useSortableList.js';

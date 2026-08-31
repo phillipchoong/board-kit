@@ -21,12 +21,14 @@
  * full list before anything is emitted. Without that translation `orderedIds`
  * would quietly tell the server to delete the order of every hidden card.
  */
-import { computed, onMounted, ref, shallowRef, useSlots, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useSlots, watch } from 'vue';
 import BoardToolbar from './BoardToolbar.vue';
 import BoardPipeline from './BoardPipeline.vue';
 import BoardListView from './BoardListView.vue';
 import BoardIcon from './BoardIcon.vue';
+import BoardCardDrawer from './BoardCardDrawer.vue';
 import { usePersistentState } from '../composables/usePersistentState.js';
+import { useChangeFlash } from '../composables/useChangeFlash.js';
 import { cardValue, filterCards, groupCards, idOf, normaliseCards, normaliseColumns, normaliseLanes } from '../lib/model.js';
 import { applyOrder, applyPending, isSettled, resolveDrop, resolveMenuMove } from '../lib/move.js';
 
@@ -63,6 +65,20 @@ const props = defineProps({
     showCardMenu: { type: Boolean, default: true },
     showDragHandle: { type: Boolean, default: false },
     groupListByLane: { type: Boolean, default: true },
+    /** Open a card into a drawer instead of only emitting `select`. */
+    drawer: { type: Boolean, default: false },
+
+    /* ---- live updates ---- */
+    /** When this data was fetched. Shows a live-ticking "Updated 40s ago". */
+    updatedAt: { type: [String, Number, Date], default: null },
+    /** True while a refresh is in flight. Spins the refresh button. */
+    refreshing: { type: Boolean, default: false },
+    /** Show a refresh button that emits `refresh`. */
+    showRefresh: { type: Boolean, default: false },
+    /** Briefly highlight cards that changed since the last load. */
+    highlightChanges: { type: Boolean, default: true },
+    /** How long a highlight lasts, in ms. */
+    flashDuration: { type: Number, default: 1600 },
     listColumns: { type: Array, default: null },
     formatUpdated: { type: Function, default: null },
     searchPlaceholder: { type: String, default: 'Search cards' },
@@ -71,7 +87,7 @@ const props = defineProps({
     touchDelay: { type: Number, default: 350 },
 });
 
-const emit = defineEmits(['move', 'select']);
+const emit = defineEmits(['move', 'select', 'refresh']);
 
 const view = defineModel('view', { type: String, default: 'board' });
 const query = defineModel('query', { type: String, default: '' });
@@ -180,6 +196,50 @@ const filterCounts = computed(() => {
     return out;
 });
 
+/* ----------------------------------------------------------- live updates */
+
+/**
+ * Cards THIS user just moved.
+ *
+ * When the save lands and the data comes back, that card has "changed" - but it
+ * changed because they moved it, and lighting it up teaches people to ignore
+ * the highlight. Entries expire on their own so a card is only exempt for as
+ * long as a round trip plausibly takes.
+ */
+const localMoves = ref(new Set());
+const localTimers = new Map();
+const LOCAL_GRACE_MS = 8000;
+
+function markLocal(id) {
+    if (localTimers.has(id)) clearTimeout(localTimers.get(id));
+    const next = new Set(localMoves.value);
+    next.add(id);
+    localMoves.value = next;
+    localTimers.set(
+        id,
+        setTimeout(() => {
+            localTimers.delete(id);
+            const after = new Set(localMoves.value);
+            after.delete(id);
+            localMoves.value = after;
+        }, LOCAL_GRACE_MS),
+    );
+}
+
+onBeforeUnmount(() => {
+    for (const timer of localTimers.values()) clearTimeout(timer);
+    localTimers.clear();
+});
+
+// Watched against the RAW props, not the optimistic view: an override the user
+// created is not a change that arrived from anywhere.
+const { flashes, summary: changeSummary } = useChangeFlash(allCards, {
+    duration: props.flashDuration,
+    ignoreIds: localMoves,
+});
+
+const activeFlashes = computed(() => (props.highlightChanges ? flashes.value : new Map()));
+
 /* ------------------------------------------------------------------ layout */
 
 const resolvedFit = computed(() =>
@@ -237,6 +297,7 @@ function commit(move, card) {
         pending.value = [...pending.value.filter((m) => m.cardId !== move.cardId), { ...move, token }];
     }
 
+    markLocal(move.cardId);
     announcement.value = `Moved ${card?.title || 'card'} to ${columnTitle(move.to.columnId)}`;
 
     const drop = () => {
@@ -251,6 +312,12 @@ function commit(move, card) {
         confirm: drop,
     });
 }
+
+// Remote changes speak through the same live region as local moves, so a screen
+// reader gets one running commentary rather than two competing ones.
+watch(changeSummary, (value) => {
+    if (props.highlightChanges && value) announcement.value = value;
+});
 
 // An override outlives its usefulness the moment the incoming data agrees with
 // it. Pruning here is what lets a caller just refetch and never call back.
@@ -278,6 +345,30 @@ function toggleLane(id) {
         : [...collapsedLanes.value, id];
 }
 
+/**
+ * The drawer follows the card, it does not copy it.
+ *
+ * Holding the id and looking the card up again on every render is what keeps an
+ * open drawer correct while the board moves underneath it: move the card from
+ * inside the drawer and the header updates, and a card that disappears from the
+ * data closes the drawer instead of leaving a stale copy on screen.
+ */
+const activeCardId = ref(null);
+const activeCard = computed(() =>
+    activeCardId.value === null ? null : (patched.value.cards.find((c) => c.id === activeCardId.value) ?? null),
+);
+const drawerOpen = computed({
+    get: () => props.drawer && activeCard.value !== null,
+    set: (value) => {
+        if (!value) activeCardId.value = null;
+    },
+});
+
+function onSelect(card) {
+    if (props.drawer) activeCardId.value = card.id;
+    emit('select', card.raw ?? card);
+}
+
 const listCellSlots = computed(() => Object.keys(slots).filter((name) => name.startsWith('cell-')));
 
 const orphans = computed(() => groupedAll.value.orphans);
@@ -298,6 +389,10 @@ const orphanStages = computed(() => [...new Set(orphans.value.map((c) => c.colum
             :search-placeholder="searchPlaceholder"
             :visible-count="visibleCards.length"
             :total-count="patched.cards.length"
+            :updated-at="updatedAt"
+            :refreshing="refreshing"
+            :show-refresh="showRefresh"
+            @refresh="emit('refresh')"
         >
             <template v-if="slots.actions" #actions><slot name="actions" /></template>
         </BoardToolbar>
@@ -329,8 +424,9 @@ const orphanStages = computed(() => [...new Set(orphans.value.map((c) => c.colum
             :empty-text="emptyText"
             :format-updated="formatUpdated"
             :touch-delay="touchDelay"
+            :flashes="activeFlashes"
             @drop="onDrop"
-            @select="(card) => emit('select', card.raw ?? card)"
+            @select="onSelect"
             @move="onMenuMove"
             @toggle-column="toggleColumn"
             @toggle-lane="toggleLane"
@@ -353,8 +449,9 @@ const orphanStages = computed(() => [...new Set(orphans.value.map((c) => c.colum
             :show-menu="showCardMenu"
             :lane-draggable="laneDraggable"
             :format-updated="formatUpdated"
+            :flashes="activeFlashes"
             @update:sort="(next) => (sort = next)"
-            @select="(card) => emit('select', card.raw ?? card)"
+            @select="onSelect"
             @move="onMenuMove"
         >
             <!-- Only the per-cell slots travel through. Forwarding every slot
@@ -363,6 +460,52 @@ const orphanStages = computed(() => [...new Set(orphans.value.map((c) => c.colum
                 <slot :name="name" v-bind="slotProps" />
             </template>
         </BoardListView>
+
+        <BoardCardDrawer
+            v-if="drawer"
+            v-model:open="drawerOpen"
+            :card="activeCard"
+            :title="activeCard?.title ?? ''"
+            :subtitle="activeCard?.subtitle ?? null"
+            :columns="columnDefs"
+            :lanes="laneDefs"
+            :lane-draggable="laneDraggable"
+            :show-menu="showCardMenu"
+            @move="(patch) => activeCard && onMenuMove({ card: activeCard, patch })"
+        >
+            <template v-if="slots['drawer-title']" #title>
+                <slot name="drawer-title" :card="activeCard" />
+            </template>
+            <template v-if="slots['drawer-actions']" #actions>
+                <slot name="drawer-actions" :card="activeCard" :close="() => (activeCardId = null)" />
+            </template>
+            <template v-if="slots['drawer-footer']" #footer>
+                <slot name="drawer-footer" :card="activeCard" :close="() => (activeCardId = null)" />
+            </template>
+
+            <slot v-if="activeCard" name="drawer" :card="activeCard" :close="() => (activeCardId = null)">
+                <!-- A useful default, so `drawer` on its own already shows
+                     something rather than an empty panel. -->
+                <dl class="bk-drawer-facts">
+                    <div>
+                        <dt>Stage</dt>
+                        <dd>{{ columnTitle(activeCard.columnId) }}</dd>
+                    </div>
+                    <div v-if="!laneDefs[0].implicit">
+                        <dt>Lane</dt>
+                        <dd>{{ laneDefs.find((l) => l.id === activeCard.laneId)?.title ?? '—' }}</dd>
+                    </div>
+                    <div v-if="activeCard.summary">
+                        <dt>Summary</dt>
+                        <dd>{{ activeCard.summary }}</dd>
+                    </div>
+                    <div v-if="activeCard.updatedAt">
+                        <dt>Updated</dt>
+                        <dd>{{ formatUpdated ? formatUpdated(activeCard.updatedAt) : activeCard.updatedAt }}</dd>
+                    </div>
+                </dl>
+            </slot>
+        </BoardCardDrawer>
 
         <p class="bk-live" role="status" aria-live="polite">{{ announcement }}</p>
     </section>
@@ -400,6 +543,26 @@ const orphanStages = computed(() => [...new Set(orphans.value.map((c) => c.colum
         --bk-col-width: 78vw;
         --bk-gap: 10px;
     }
+}
+
+.bk-drawer-facts {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+}
+
+.bk-drawer-facts dt {
+    margin-block-end: 2px;
+    color: var(--text-faint, #98a2b3);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.bk-drawer-facts dd {
+    margin: 0;
+    color: var(--text-body, #344054);
 }
 
 .bk-orphans {

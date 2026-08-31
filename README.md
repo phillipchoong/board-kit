@@ -8,7 +8,11 @@ OS, KrakenOS, client-starter itself) and used more than once per app.
 - **Swimlanes** — real horizontal rows, all sharing one grid and one scroll.
 - **Drag between columns and reorder inside one**, built for a thumb first.
 - **Filters, search and WIP limits**, with honest counts.
-- **No colours of its own.** It reads your app's design tokens, dark mode included.
+- **A card drawer** - bottom sheet on a phone, side panel on desktop.
+- **Live updates**: a ticking "Updated 40s ago", and a moment of highlight on
+  every card that changed while you were looking at it.
+- **Light and dark**, because it ships no colours of its own - it reads your
+  app's design tokens and follows whatever the app is doing.
 - **It never touches your data.** A drop emits an event; the props stay the truth.
 
 ---
@@ -146,6 +150,116 @@ use `orderedIds` and never think about it.
 
 ---
 
+## The card drawer
+
+Tapping a card emits `select` and nothing else, until you ask for a drawer:
+
+```vue
+<BoardView :columns="COLUMNS" :cards="cards" drawer @move="onMove">
+    <template #drawer="{ card, close }">
+        <MyLeadDetails :lead="card.raw" @saved="close" />
+    </template>
+</BoardView>
+```
+
+- **Bottom sheet under 768px, side panel above it.** Not a centred modal: on a
+  phone that strands a card-sized dialog in mid-air, and on a desktop it hides
+  the board behind the thing you are reading about.
+- Closes on Escape, on the scrim, on the close button, and on a swipe down when
+  it is a sheet. The swipe handle is the header alone, so the content inside can
+  still be scrolled.
+- Focus moves in, Tab is trapped inside, and focus goes back to the card you
+  opened when it closes.
+- The page behind it is pinned, and the scroll position is restored afterwards.
+- **It holds the card's id, not a copy.** Move the card from inside the drawer
+  and the header follows it; if the card disappears from your data, the drawer
+  closes instead of showing a stale copy.
+- The header carries the move menu, so a card opened on a phone can be moved
+  without ever closing the panel.
+
+Slots: `drawer` (`{ card, close }`), `drawer-title`, `drawer-actions`,
+`drawer-footer`. With no `drawer` slot you still get a sensible default panel
+listing the stage, lane, summary and updated time.
+
+There is **no back-button integration**, deliberately. Back-to-close is the
+expected gesture on Android, but the way to build it - pushing a history entry -
+collides with how Inertia manages history, and a `popstate` carrying no Inertia
+page state makes it hard-reload the page.
+
+---
+
+## Live updates
+
+A board that someone else is also using has to say two things: how old what you
+are looking at is, and what just changed.
+
+```vue
+<BoardView
+    :columns="COLUMNS"
+    :cards="cards"
+    :updated-at="fetchedAt"
+    :refreshing="refreshing"
+    show-refresh
+    @refresh="reload"
+    @move="onMove"
+/>
+```
+
+**Freshness.** `updatedAt` renders as a live-ticking "Updated 40s ago" in the
+toolbar. It updates itself on a shared 30-second clock that stops while the tab
+is hidden - one interval for the whole page, however many boards are on it. Card
+timestamps tick on the same clock, so `formatUpdated` stays honest without you
+re-rendering anything.
+
+**Highlights.** Whenever the `cards` prop changes, the board diffs it against
+what it had and gives each changed card about a second and a half of highlight:
+
+| | |
+|---|---|
+| green, "New" | the card was not there before |
+| blue, "Moved" | it changed column or lane |
+| purple, "Updated" | something it displays changed |
+
+A card gets one kind only, most significant first, and the batch is announced to
+screen readers as "3 cards: 1 new, 1 moved, 1 updated". The first render never
+highlights anything - every card is technically new then, and a board that
+lights up entirely on open has said nothing.
+
+**Your own moves never flash.** The card you just dragged comes back from the
+server changed, but that is not news; highlighting it is how the highlight stops
+meaning "someone else touched this".
+
+The highlight compares what the card *shows* - title, subtitle, summary, badges,
+tags, meta, `updatedAt` - not the whole row. Flashing a card because some
+`sync_token` moved teaches people to ignore it.
+
+Turn it off with `:highlight-changes="false"`, or change the timing with
+`:flash-duration="1600"`.
+
+**Polling is yours, not the kit's.** The usual Inertia shape:
+
+```js
+const refreshing = ref(false);
+
+function reload() {
+    router.reload({
+        only: ['leads'],
+        onStart: () => (refreshing.value = true),
+        onFinish: () => {
+            refreshing.value = false;
+            fetchedAt.value = new Date().toISOString();
+        },
+    });
+}
+
+useIntervalFn(reload, 30000);   // or a websocket, or nothing at all
+```
+
+Nothing about a refresh disturbs the user: scroll position, collapsed columns,
+filters, an open drawer and a move still in flight all survive it.
+
+---
+
 ## Swimlanes
 
 Pass `lanes` and every stage repeats once per lane, in **one grid** so the
@@ -234,6 +348,12 @@ those differ, the chip's tooltip says both.
 | `showCardMenu` | Boolean | `true` | **leave this on**; it is the keyboard path |
 | `showDragHandle` | Boolean | `false` | draw a grip on each card |
 | `groupListByLane` | Boolean | `true` | |
+| `drawer` | Boolean | `false` | open cards into a drawer |
+| `updatedAt` | String \| Number \| Date | `null` | shows a ticking "Updated N ago" |
+| `refreshing` | Boolean | `false` | spins the refresh button |
+| `showRefresh` | Boolean | `false` | show a refresh button that emits `refresh` |
+| `highlightChanges` | Boolean | `true` | flash cards that changed |
+| `flashDuration` | Number | `1600` | how long a flash lasts, in ms |
 | `listColumns` | Array | `null` | see [List view](#list-view) |
 | `formatUpdated` | Function | `null` | `(iso) => string` |
 | `searchPlaceholder`, `emptyText` | String | | |
@@ -268,6 +388,7 @@ those differ, the chip's tooltip says both.
 |---|---|
 | `move` | see [The `move` event](#the-move-event) |
 | `select` | the **original** card object you passed in |
+| `refresh` | the refresh button was used |
 
 ## Slots
 
@@ -277,6 +398,10 @@ those differ, the chip's tooltip says both.
 | `card-title` | `{ card }` | replaces just the title line |
 | `actions` | — | your own buttons in the toolbar |
 | `cell-<key>` | `{ card, column, value }` | one cell of the list view |
+| `drawer` | `{ card, close }` | the drawer's body |
+| `drawer-title` | `{ card }` | the drawer's heading |
+| `drawer-actions` | `{ card, close }` | buttons in the drawer header |
+| `drawer-footer` | `{ card, close }` | a sticky footer in the drawer |
 
 ---
 
@@ -304,16 +429,30 @@ sorting across lanes would throw the grouping away.
 
 ---
 
-## Theming
+## Theming, light and dark
 
-The kit ships **no colours**. It reads the variables client-starter's
+The kit ships **no colours**, so light and dark are not a feature it has - they
+are whatever your app is already doing. Nothing to configure and no theme prop:
+switch the app to dark and the board, the cards, the drawer, the popovers and
+the change highlights all go with it. It reads the variables client-starter's
 `semantic.css` already defines, so in any of those apps it inherits the brand and
 the dark mode with nothing to configure: `--surface-card`, `--surface-sunken`,
 `--surface-hover`, `--text-strong`, `--text-body`, `--text-muted`, `--text-faint`,
 `--border-subtle`, `--border-default`, `--border-focus`, `--radius-*`,
-`--shadow-*`, and the status ramps (`--success-bg` / `--success-700` /
+`--shadow-*`, `--surface-overlay`, `--shadow-modal`, and the status ramps (`--success-bg` / `--success-700` /
 `--success-border`, and the same three for warning, danger, info, special,
 neutral). Every one has a sane fallback, so it also works in a plain Vite app.
+
+**One line for the host page.** Filtering a board can remove enough cards to
+make the page short enough to lose its scrollbar, and the layout then jumps
+sideways by the scrollbar's width. That is the page, not the board, and the fix
+belongs in the app:
+
+```css
+html {
+    scrollbar-gutter: stable;
+}
+```
 
 Layout is four variables, set on the board element and overridable from outside:
 
@@ -393,6 +532,13 @@ may be slot 9 in the real one. The kit resolves the drop through that card's
 identity in the unfiltered list before emitting anything. Without it,
 `orderedIds` would quietly tell your server to forget the order of every card the
 filter was hiding.
+
+### Why your own moves do not flash
+
+A highlight is only worth anything if it means "someone else changed this".
+Flashing the card the user just dragged - which is a change, technically - is
+how people learn to ignore it. Cards moved locally are exempt for eight seconds,
+long enough for a round trip.
 
 ### Why no backend
 
