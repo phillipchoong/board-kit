@@ -33,6 +33,8 @@ const PATHS = {
     check: ['M20 6L9 17l-5-5'],
     inbox: ['M22 12h-6l-2 3h-4l-2-3H2', 'M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'],
     plus: ['M12 5v14', 'M5 12h14'],
+    refresh: ['M21 12a9 9 0 1 1-2.64-6.36', 'M21 3v6h-6'],
+    dot: ['M12 12h.01'],
 };
 
 const paths = computed(() => PATHS[props.name] ?? []);

@@ -25,3 +25,19 @@ it in on merge.
   nothing. The pending-move list uses `shallowRef` plus an explicit token for
   this reason; with a plain `ref` a failed save left the card in its new column
   forever, and the unit test for `revert()` is what caught it.
+
+## Verifying in a browser
+
+- **A hidden browser pane has no `requestAnimationFrame`,** so every Vue
+  `<Transition>` freezes half-applied: the element keeps its `*-enter-from`
+  class, never gets `*-leave-to`, and is never unmounted. A drawer checked this
+  way looks permanently stuck with its scrim swallowing clicks, and it is not -
+  it is the tab. Check `document.hidden` and whether a `requestAnimationFrame`
+  callback actually fires before believing a transition bug.
+- `:duration` on `<Transition>` does **not** rescue that case. Vue arms the
+  timeout inside a rAF callback, so no frames means no timer either. It is still
+  worth setting, for the different failure where a host app kills CSS
+  transitions and `transitionend` never fires.
+- Structure, ARIA, focus management, scroll lock and computed colours can all be
+  asserted from a script with the pane hidden. Only the animation itself needs a
+  visible tab.
