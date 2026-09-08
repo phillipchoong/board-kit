@@ -4,6 +4,13 @@ All notable changes to board-kit are recorded here. The version and this file
 are only ever changed by `version-bump.yml` on merge to `main`; a task branch
 adds a fragment under `.changes/` instead.
 
+## [0.1.2] - 2026-09-09
+
+### Added
+
+- `homepage`, `bugs.url` and `keywords` in `package.json`, so the npm page and
+  the GitHub package sidebar carry them (tasks#1536).
+
 ## [0.1.1] - 2026-08-31
 
 ### Added
