@@ -2,6 +2,18 @@
   "name": "board-kit",
   "version": "0.1.1",
   "description": "Reusable Trello-style pipeline (kanban) and list views for Vue 3 + Inertia apps.",
+  "keywords": [
+    "kanban",
+    "board",
+    "pipeline",
+    "vue",
+    "inertia",
+    "drag-and-drop"
+  ],
+  "homepage": "https://github.com/phillipchoong/board-kit",
+  "bugs": {
+    "url": "https://github.com/phillipchoong/board-kit/issues"
+  },
   "type": "module",
   "license": "MIT",
   "repository": {
