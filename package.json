@@ -27,6 +27,7 @@
   "exports": {
     ".": "./src/index.js",
     "./components/*": "./src/components/*",
+    "./composables/*": "./src/composables/*",
     "./lib/*": "./src/lib/*",
     "./package.json": "./package.json"
   },
