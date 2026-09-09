@@ -4,6 +4,13 @@ All notable changes to board-kit are recorded here. The version and this file
 are only ever changed by `version-bump.yml` on merge to `main`; a task branch
 adds a fragment under `.changes/` instead.
 
+## [0.1.3] - 2026-09-09
+
+### Fixed
+- Added `./composables/*` to the `exports` map in `package.json` so consumers
+  can import from `board-kit/composables/*` — previously only `./components/*`
+  and `./lib/*` were exported, leaving the composables subpath unresolvable.
+
 ## [0.1.2] - 2026-09-09
 
 ### Added
