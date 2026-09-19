@@ -22,12 +22,16 @@ OS, KrakenOS, client-starter itself) and used more than once per app.
 It is a public repo, so no token and no registry setup:
 
 ```
-npm install github:phillipchoong/board-kit#v0.1.1
+npm install github:phillipchoong/board-kit#semver:^0.1
 ```
 
-Pin a tag, not `main` — a git dependency on a branch re-resolves on every
-`npm install`, so six apps would drift apart on whatever `main` happened to be
-that day. The tags are at
+**The tag is the release** — a merge to `main` alone installs nothing; the
+`version-bump` workflow bumps `package.json` and pushes the matching tag in
+the same job, with no human step. Pin a range, not `main` — a git dependency on
+a branch re-resolves on every `npm install`, so six apps would drift apart on
+whatever `main` happened to be that day. `#semver:^0.1` stays inside `0.1.*`
+(releases are patch bumps only while the package is `0.x`) and `npm update
+board-kit` moves to the newest matching tag. The tags are at
 [github.com/phillipchoong/board-kit/tags](https://github.com/phillipchoong/board-kit/tags).
 
 Then **one line** in the app's `vite.config.js`:

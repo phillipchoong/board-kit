@@ -5,7 +5,10 @@
 # adds ONE fragment file, .changes/<issue>-<slug>.md (the board issue number
 # keeps the name unique, so PRs can never collide). On merge to main this job
 # bumps the patch version once, folds every pending fragment into the changelog
-# under the new version heading, deletes the fragments, and pushes.
+# under the new version heading, deletes the fragments, and pushes. Consumers
+# install this package as a git dependency, so **the tag is the release**: the
+# job also tags the release commit, and a learnings-only merge that cuts no
+# release cuts no tag.
 #
 # The same job also folds agent learnings. Task branches never edit
 # .agents/LEARNINGS.md either (same conflict problem, and the digest wants a
@@ -140,10 +143,26 @@ jobs:
             git commit -m "chore: fold ${#learn[@]} learnings fragment(s) [skip ci]"
           fi
           # A merge racing this job can move main between checkout and push.
+          pushed=
           for i in 1 2 3; do
-            if git push; then break; fi
+            if git push; then pushed=1; break; fi
             git pull --rebase
           done
+          [ -n "$pushed" ] || { echo "::error::could not push the release commit after 3 attempts"; exit 1; }
+
+          # The tag is cut only after the push lands, and on whatever HEAD the
+          # rebase left, so a tag can never name a commit that is not on main.
+          # A learnings-only merge cuts no release, so NEW is empty and no tag
+          # is cut.
+          if [ -n "$NEW" ]; then
+            git fetch --tags --force
+            if git rev-parse -q --verify "refs/tags/v$NEW" >/dev/null; then
+              echo "::error::v$NEW was created while this job ran -- the release commit is pushed but NOT tagged. Tag it by hand: git tag -a v$NEW <sha> && git push origin refs/tags/v$NEW" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            git tag -a "v$NEW" -m "v$NEW"
+            git push origin "refs/tags/v$NEW"
+          fi
           if [ -n "$NEW" ]; then
             echo "released v$NEW (${#keep[@]} fragment(s))" >> "$GITHUB_STEP_SUMMARY"
           fi
