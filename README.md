@@ -555,3 +555,15 @@ The five apps that will use this store stages in five different shapes. A trait
 and a migration would force one, and would be the first thing every screen worked
 around. The `move` payload answers the "where did it land" question three ways
 instead, and each app answers it the way its own table already works.
+
+## Releases
+
+`version-bump.yml` folds `.changes/` fragments into `CHANGELOG.md` and pushes
+`chore: release vX.Y.Z [skip ci]` straight to `main`. It pushes with a write
+deploy key (secret `VERSION_BUMP_DEPLOY_KEY`), the only actor allowed past the
+`main` ruleset (tasks#2883).
+
+- Do not delete that secret or the deploy key. The release push then fails.
+- Keep `[skip ci]` in the release commit message. A deploy-key push starts
+  workflows, so without it the release commit re-runs CI, the deploy and the
+  bump itself.
