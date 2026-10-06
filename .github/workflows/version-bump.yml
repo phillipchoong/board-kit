@@ -21,9 +21,17 @@
 #
 # Deterministic bash + python only -- no agent, no LLM. Runs on ubuntu-latest
 # rather than the board's self-hosted runner: it needs npm and python3 and
-# nothing else, and it must not queue behind the CI jobs. The push uses
-# GITHUB_TOKEN, so it cannot re-trigger workflows (no loop); [skip ci] in the
-# commit message is belt-and-braces.
+# nothing else, and it must not queue behind the CI jobs.
+#
+# The push goes straight to `main`, which has a ruleset (tasks#2883): PRs only,
+# CI required and up to date. GITHUB_TOKEN cannot be put on a ruleset's bypass
+# list, so the push uses a write deploy key that IS on it -- secret
+# VERSION_BUMP_DEPLOY_KEY (recipe: ops-board
+# runbooks/RUNBOOK_branch_protection.md). With the secret absent, checkout
+# falls back to GITHUB_TOKEN, which is right for a repo with no ruleset.
+# A deploy-key push DOES start workflows, unlike a GITHUB_TOKEN one, so
+# `[skip ci]` in the commit message is now what stops this commit re-running
+# CI, the deploy and this job. Never drop it.
 name: version-bump
 
 on:
@@ -50,7 +58,9 @@ jobs:
       # fetch-depth 0: the push-retry below rebases onto a moved main,
       # which a shallow clone rejects ("shallow update not allowed").
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.VERSION_BUMP_DEPLOY_KEY }}
       - name: Bump version and fold fragments
         env:
           PKG_DIR: .

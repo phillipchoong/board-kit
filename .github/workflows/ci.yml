@@ -1,9 +1,16 @@
 name: CI
 
 on:
+  # No paths-ignore on pull_request, on purpose (tasks#2883, recipe from
+  # tasks#2827). `main` has a ruleset that REQUIRES the "Test & build"
+  # check, and a check that never reports blocks the PR forever. So every PR
+  # starts this workflow, the `changes` job below decides whether anything but
+  # docs changed, and on a docs-only PR the test job is SKIPPED -- which
+  # GitHub counts as a pass for a required check. The docs patterns live in
+  # the `changes` job now.
   pull_request:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**', '.agents/**']
+  # Push keeps its paths-ignore: a docs-only merge must not start CI.
   push:
     branches: [main]
     paths-ignore: ['**.md', 'docs/**', '.agents/**']
@@ -14,8 +21,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Docs-only check for pull requests (tasks#2883, recipe from tasks#2827).
+  # Answers `code=false` ONLY when it read the PR's file list and every file is
+  # docs -- the same patterns the push trigger ignores. Any other answer,
+  # including a failure of this job, leaves the test job running: a docs-only
+  # PR that runs the full suite costs minutes, a code PR that skips it ships
+  # untested code.
+  changes:
+    name: Detect code changes
+    runs-on: ${{ vars.CI_RUNNER || 'board' }}
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      # fetch-depth 2: a pull_request run checks out the PR's merge commit,
+      # whose first parent is the base branch tip. HEAD^1..HEAD is exactly
+      # what this PR changes against the current base.
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with: { fetch-depth: 2 }
+      - name: Classify changed files
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! files=$(git diff --name-only HEAD^1 HEAD) || [ -z "$files" ]; then
+            echo "could not read the changed files -- running the suite"
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          code=$(printf '%s\n' "$files" | grep -vE '(\.md$|^docs/|^\.agents/)' || true)
+          if [ -z "$code" ]; then
+            echo "docs-only PR -- the test job is skipped, which counts as a pass"
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
     name: Test & build
+    needs: changes
+    # Skipped ONLY on a positive docs-only answer. `!cancelled()` keeps it
+    # running when `changes` failed: a skipped required check reads as green,
+    # so a broken classifier must never be able to skip the suite.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     # Aurora board runners by default; setting the repo variable
     # CI_RUNNER=ubuntu-latest flips back to GitHub-hosted with no commit --
     # the failsafe. Keep this expression verbatim (ops-board
