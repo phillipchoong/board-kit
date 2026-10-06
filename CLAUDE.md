@@ -58,3 +58,16 @@ card. The switch marked "make every save fail" is how you check a revert.
 - Durable findings go in `.agents/learnings/<issue>-<slug>.md`, never straight
   into `.agents/LEARNINGS.md`.
 - 4-space indent, single quotes, semicolons. Comments explain *why*, not what.
+
+## `main` is protected (tasks#2883)
+
+`main` has a repository ruleset (ops-board `runbooks/RUNBOOK_branch_protection.md`):
+
+- Changes reach `main` by pull request only. No direct push, no force push, no delete.
+- The "Test & build" check must pass, and the branch must be **up to date with
+  `main`**. A PR that is behind is refused until **Update branch** and a green
+  re-run. A green check against an older `main` proves nothing.
+- A docs-only PR (`.md`, `docs/`, `.agents/`) reports "Test & build" as
+  skipped, and a skipped check counts as passed. That is the `changes` job in
+  `ci.yml`. Never put a docs filter back on the `pull_request` trigger: a
+  required check that never reports blocks the PR forever.
