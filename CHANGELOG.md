@@ -4,6 +4,12 @@ All notable changes to board-kit are recorded here. The version and this file
 are only ever changed by `version-bump.yml` on merge to `main`; a task branch
 adds a fragment under `.changes/` instead.
 
+## [0.1.7] - 2026-10-06
+
+### Changed
+
+- `README.md` says how the release commit gets past the `main` ruleset (tasks#2883).
+
 ## [0.1.6] - 2026-10-06
 
 ### Changed
