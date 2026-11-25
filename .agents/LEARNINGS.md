@@ -41,3 +41,8 @@ it in on merge.
 - Structure, ARIA, focus management, scroll lock and computed colours can all be
   asserted from a script with the pane hidden. Only the animation itself needs a
   visible tab.
+
+<!-- folded 2026-11-25 from .agents/learnings/4012-security-scan-4-new-finding.md -->
+
+- `npm audit fix` / `npm update` crash on npm 10.9 here with `Cannot read properties of null (reading 'edgesOut')` (peer-set bug). `npx -y npm@11 audit fix` works. Cost: the first attempts burn minutes.
+
