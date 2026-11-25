@@ -1,0 +1,1 @@
+- `npm audit fix` / `npm update` crash on npm 10.9 here with `Cannot read properties of null (reading 'edgesOut')` (peer-set bug). `npx -y npm@11 audit fix` works. Cost: the first attempts burn minutes.
